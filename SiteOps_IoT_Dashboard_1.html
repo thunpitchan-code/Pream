@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SiteOps — IoT Construction Monitoring | Live</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:            #0a0e14;
+    --panel:         #0f1520;
+    --panel-2:       #131a26;
+    --border:        #1f2937;
+    --border-hot:    #2d3b50;
+    --text:          #e5e9f0;
+    --text-dim:      #8a94a6;
+    --text-faint:    #56606f;
+    --accent:        #00d9a6;     /* mint cyan: OK */
+    --warn:          #ffb547;     /* amber: warn */
+    --danger:        #ff4d5e;     /* red: alert */
+    --info:          #4fc3f7;     /* blue: info */
+    --violet:        #b084ff;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    font-size: 13px;
+    /* subtle animated grid */
+    background-image:
+      radial-gradient(circle at 20% 10%, rgba(0,217,166,0.04), transparent 40%),
+      radial-gradient(circle at 90% 80%, rgba(79,195,247,0.04), transparent 40%),
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+  }
+
+  /* ---------- Layout ---------- */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr 32px;
+    height: 100vh;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex; align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0f1520 0%, #0a0e14 100%);
+    gap: 24px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--sans);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .brand-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    color: #000;
+    display: grid; place-items: center;
+    font-family: var(--mono);
+    font-weight: 700;
+    position: relative;
+  }
+  .brand-mark::before {
+    content: '';
+    position: absolute; inset: -3px;
+    border: 1px solid var(--accent);
+    opacity: 0.3;
+  }
+  .brand-name { font-size: 15px; }
+  .brand-name .accent { color: var(--accent); }
+  .brand-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding-top: 2px;
+  }
+  .nav {
+    display: flex; gap: 2px;
+    margin-left: 20px;
+  }
+  .nav-btn {
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover { color: var(--text); background: var(--panel-2); }
+  .nav-btn.active {
+    color: var(--accent);
+    border-color: var(--border-hot);
+    background: var(--panel-2);
+  }
+  .topbar-right {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 20px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-hot);
+    background: var(--panel-2);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* ---------- Main grid ---------- */
+  .main {
+    display: grid;
+    grid-template-columns: 280px 1fr 340px;
+    gap: 1px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .col { background: var(--bg); overflow-y: auto; overflow-x: hidden; padding: 16px; }
+  .col::-webkit-scrollbar { width: 6px; }
+  .col::-webkit-scrollbar-track { background: var(--panel); }
+  .col::-webkit-scrollbar-thumb { background: var(--border-hot); }
+
+  /* ---------- Section headers ---------- */
+  .sec-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+  }
+  .sec-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  .sec-count {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+  }
+
+  /* ---------- Left: Sensors list ---------- */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .kpi {
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .kpi-label {
+    font-size: 9px; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.18em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: var(--sans);
+    font-size: 22px; font-weight: 700;
+    color: var(--text);
+  }
+  .kpi-delta {
+    position: absolute; top: 12px; right: 12px;
+    font-size: 9px;
+    color: var(--accent);
+  }
+  .kpi-delta.down { color: var(--danger); }
+
+  .sensor-item {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .sensor-item:hover { border-color: var(--border-hot); background: var(--panel-2); }
+  .sensor-item.active { border-color: var(--accent); background: var(--panel-2); }
+  .sensor-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .sensor-dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .sensor-dot.danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: pulse 0.8s infinite; }
+  .sensor-dot.off { background: var(--text-faint); }
+  .sensor-info { min-width: 0; }
+  .sensor-name { font-size: 11px; color: var(--text); font-weight: 500; }
+  .sensor-meta { font-size: 9px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+  .sensor-val { font-size: 11px; color: var(--text-dim); text-align: right; }
+
+  /* ---------- Center: site map + CCTV ---------- */
+  .center-stack {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+    height: 100%;
+  }
+
+  .site-panel {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .panel-title {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  .panel-controls { display: flex; gap: 8px; align-items: center; font-size: 10px; color: var(--text-faint); }
+  .panel-tab {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: transparent;
+    font-family: var(--mono);
+  }
+  .panel-tab.active { border-color: var(--accent); color: var(--accent); }
+  .panel-body { position: relative; height: calc(100% - 41px); }
+
+  /* ---------- Site map (SVG) ---------- */
+  #siteMap { width: 100%; height: 100%; display: block; }
+
+  /* ---------- CCTV grid ---------- */
+  .cctv-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    height: 100%;
+    background: var(--border);
+  }
+  .cctv-cell {
+    position: relative;
+    background: #050709;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .cctv-label {
+    position: absolute;
+    top: 8px; left: 10px;
+    font-size: 10px;
+    color: var(--text);
+    letter-spacing: 0.12em;
+    z-index: 5;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  .cctv-rec {
+    position: absolute;
+    top: 8px; right: 10px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 9px;
+    color: var(--danger);
+    z-index: 5;
+  }
+  .cctv-rec .dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); width: 6px; height: 6px; }
+  .cctv-time {
+    position: absolute;
+    bottom: 8px; left: 10px;
+    font-size: 10px;
+    color: var(--text);
+    letter-spacing: 0.1em;
+    z-index: 5;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  .cctv-scan {
+    position: absolute; inset: 0;
+    background: linear-gradient(transparent 50%, rgba(0,217,166,0.04) 50%);
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 4;
+    mix-blend-mode: overlay;
+  }
+  .cctv-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 100%);
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* ---------- Right column: alerts + env ---------- */
+  .alert-card {
+    padding: 12px 14px;
+    background: var(--panel);
+    border-left: 3px solid var(--accent);
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+    animation: slideIn 0.35s ease-out;
+  }
+  .alert-card.warn { border-left-color: var(--warn); }
+  .alert-card.danger { border-left-color: var(--danger); background: linear-gradient(90deg, rgba(255,77,94,0.08), var(--panel)); }
+  .alert-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .alert-type {
+    font-size: 9px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+  }
+  .alert-card.warn .alert-type { color: var(--warn); }
+  .alert-card.danger .alert-type { color: var(--danger); }
+  .alert-time {
+    font-size: 9px;
+    color: var(--text-faint);
+  }
+  .alert-msg {
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+    margin-bottom: 4px;
+  }
+  .alert-meta {
+    font-size: 9px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  @keyframes slideIn {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  /* ---------- Env metrics ---------- */
+  .env-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .env-card {
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .env-label {
+    font-size: 9px; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.18em;
+    margin-bottom: 8px;
+  }
+  .env-row { display: flex; align-items: baseline; gap: 6px; }
+  .env-value { font-family: var(--sans); font-size: 18px; font-weight: 700; }
+  .env-unit { font-size: 10px; color: var(--text-dim); }
+  .env-bar {
+    margin-top: 8px;
+    height: 3px; background: var(--border);
+    position: relative; overflow: hidden;
+  }
+  .env-bar::after {
+    content: '';
+    position: absolute; top: 0; left: 0; bottom: 0;
+    background: var(--accent);
+    width: var(--pct, 50%);
+    transition: width 0.5s ease;
+  }
+  .env-card.warn .env-bar::after { background: var(--warn); }
+  .env-card.warn .env-value { color: var(--warn); }
+
+  /* ---------- Demo buttons ---------- */
+  .demo-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .demo-btn {
+    padding: 10px 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .demo-btn:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,77,94,0.05); }
+  .demo-btn.safe:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,217,166,0.05); }
+  .demo-btn.warn:hover { border-color: var(--warn); color: var(--warn); background: rgba(255,181,71,0.05); }
+
+  /* ---------- Bottom status bar ---------- */
+  .statusbar {
+    display: flex; align-items: center;
+    padding: 0 20px; gap: 24px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+  .statusbar span.accent { color: var(--accent); }
+  .statusbar .spacer { flex: 1; }
+
+  /* ---------- Map elements ---------- */
+  .map-marker {
+    cursor: pointer;
+  }
+  .map-marker circle.core { transition: all 0.2s; }
+  .map-marker:hover circle.core { r: 9; }
+  @keyframes mapPing {
+    0% { r: 8; opacity: 0.7; }
+    100% { r: 24; opacity: 0; }
+  }
+  .ping {
+    animation: mapPing 1.8s ease-out infinite;
+    transform-origin: center;
+  }
+
+  /* CCTV canvas animations */
+  @keyframes worker-walk {
+    0% { transform: translateX(-20px); }
+    100% { transform: translateX(340px); }
+  }
+  @keyframes crane-swing {
+    0%, 100% { transform: rotate(-8deg); }
+    50% { transform: rotate(8deg); }
+  }
+  @keyframes flicker { 0%, 98% { opacity: 1; } 99% { opacity: 0.6; } }
+
+  /* Pulse flash for triggered alerts */
+  .flash {
+    animation: flashBox 1s ease-out;
+  }
+  @keyframes flashBox {
+    0% { background: rgba(255,77,94,0.3); }
+    100% { background: transparent; }
+  }
+
+  /* Mini chart */
+  .spark {
+    width: 100%; height: 32px;
+    margin-top: 6px;
+  }
+
+  /* ---------- PPE detection panel ---------- */
+  .ppe-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .ppe-chip {
+    padding: 10px 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    text-align: center;
+    position: relative;
+    transition: all 0.25s;
+  }
+  .ppe-chip.ok { border-color: rgba(0,217,166,0.4); }
+  .ppe-chip.violation {
+    border-color: var(--danger);
+    background: linear-gradient(180deg, rgba(255,77,94,0.1), var(--panel));
+    animation: ppePulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ppePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,94,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(255,77,94,0); }
+  }
+  .ppe-icon {
+    font-size: 18px;
+    margin-bottom: 4px;
+    filter: grayscale(0.2);
+  }
+  .ppe-chip.ok .ppe-icon { filter: none; }
+  .ppe-chip.violation .ppe-icon { filter: none; }
+  .ppe-label {
+    font-size: 8px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 4px;
+  }
+  .ppe-chip.ok .ppe-label { color: var(--text-dim); }
+  .ppe-chip.violation .ppe-label { color: var(--danger); }
+  .ppe-pct {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+  }
+  .ppe-chip.violation .ppe-pct { color: var(--danger); }
+  .ppe-chip.ok .ppe-pct { color: var(--accent); }
+
+  /* Worker PPE list */
+  .worker-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .worker-row.violation {
+    border-left: 3px solid var(--danger);
+    background: linear-gradient(90deg, rgba(255,77,94,0.08), var(--panel));
+  }
+  .worker-avatar {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--border-hot);
+    display: grid; place-items: center;
+    font-size: 10px;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .worker-row.violation .worker-avatar { background: var(--danger); color: #000; }
+  .worker-id { color: var(--text); font-weight: 500; }
+  .worker-zone { font-size: 9px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 1px; }
+  .ppe-badges { display: flex; gap: 3px; }
+  .ppe-badge {
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border);
+    font-size: 10px;
+    background: var(--panel-2);
+  }
+  .ppe-badge.yes { border-color: var(--accent); background: rgba(0,217,166,0.1); }
+  .ppe-badge.no { border-color: var(--danger); background: rgba(255,77,94,0.15); opacity: 0.8; }
+  .ppe-badge.no::after {
+    content: '✕';
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 9px;
+  }
+  .ppe-badge.yes::after {
+    content: '✓';
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 9px;
+  }
+
+  /* Tooltip for map */
+  .map-tip {
+    position: absolute;
+    background: var(--panel-2);
+    border: 1px solid var(--border-hot);
+    padding: 8px 10px;
+    font-size: 10px;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .map-tip.show { opacity: 1; }
+  .map-tip .tip-label { color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.15em; font-size: 9px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div>
+        <div class="brand-name">SITE<span class="accent">OPS</span> // OPERATIONS CENTER</div>
+        <div class="brand-tag">IoT Real-Time Monitoring · v2.4.1</div>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="nav-btn active">LIVE</button>
+      <button class="nav-btn">HISTORY</button>
+      <button class="nav-btn">WORKERS</button>
+      <button class="nav-btn">EQUIPMENT</button>
+      <button class="nav-btn">REPORTS</button>
+    </div>
+    <div class="topbar-right">
+      <div>PROJECT // <span style="color:var(--text)">PTH-MIXED-USE-07</span></div>
+      <div>SITE // <span style="color:var(--text)">Pathum Thani, TH</span></div>
+      <div class="status-pill">
+        <div class="dot"></div>
+        <span style="color:var(--accent)">ALL SYSTEMS ONLINE</span>
+      </div>
+      <div id="clock" style="color:var(--text);font-weight:500;"></div>
+    </div>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+
+    <!-- ============ LEFT COLUMN ============ -->
+    <div class="col">
+      <div class="sec-head">
+        <div class="sec-title">// SITE OVERVIEW</div>
+        <div class="sec-count" id="sensorCount">0 / 0 ACTIVE</div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Workers</div>
+          <div class="kpi-value" id="kpiWorkers">47</div>
+          <div class="kpi-delta">+3</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Equipment</div>
+          <div class="kpi-value" id="kpiEquip">12</div>
+          <div class="kpi-delta">9 ACTIVE</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Sensors</div>
+          <div class="kpi-value" id="kpiSensors">34</div>
+          <div class="kpi-delta">100%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Incidents 24h</div>
+          <div class="kpi-value" id="kpiIncidents" style="color:var(--warn)">2</div>
+          <div class="kpi-delta down">+2</div>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <div class="sec-title">// SENSOR NODES</div>
+        <div class="sec-count" id="nodeStatus">ALL OK</div>
+      </div>
+      <div id="sensorList"></div>
+    </div>
+
+    <!-- ============ CENTER COLUMN ============ -->
+    <div class="col" style="padding:0;">
+      <div class="center-stack" style="padding:16px;">
+
+        <!-- Site map -->
+        <div class="site-panel">
+          <div class="panel-head">
+            <div class="panel-title">// LIVE SITE MAP · BIM OVERLAY</div>
+            <div class="panel-controls">
+              <button class="panel-tab active">SENSORS</button>
+              <button class="panel-tab">WORKERS</button>
+              <button class="panel-tab">HEATMAP</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <svg id="siteMap" viewBox="0 0 800 360" preserveAspectRatio="xMidYMid meet">
+              <!-- Grid background -->
+              <defs>
+                <pattern id="gridPat" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1a2333" stroke-width="0.5"/>
+                </pattern>
+                <linearGradient id="bldgGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#1a2333"/>
+                  <stop offset="1" stop-color="#0f1520"/>
+                </linearGradient>
+              </defs>
+              <rect width="800" height="360" fill="url(#gridPat)"/>
+
+              <!-- Site boundary -->
+              <rect x="40" y="30" width="720" height="300" fill="none" stroke="#2d3b50" stroke-width="1" stroke-dasharray="4 4"/>
+              <text x="50" y="25" fill="#56606f" font-family="JetBrains Mono" font-size="9" letter-spacing="2">SITE BOUNDARY · 18,500 m²</text>
+
+              <!-- Buildings (under construction) -->
+              <g>
+                <rect x="80" y="80" width="200" height="140" fill="url(#bldgGrad)" stroke="#2d3b50" stroke-width="1"/>
+                <text x="180" y="155" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="10" letter-spacing="2">BLOCK A</text>
+                <text x="180" y="170" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="8" letter-spacing="1">L5 · CONCRETE POUR</text>
+
+                <rect x="320" y="80" width="200" height="140" fill="url(#bldgGrad)" stroke="#2d3b50" stroke-width="1"/>
+                <text x="420" y="155" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="10" letter-spacing="2">BLOCK B</text>
+                <text x="420" y="170" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="8" letter-spacing="1">L3 · FORMWORK</text>
+
+                <rect x="560" y="80" width="160" height="140" fill="url(#bldgGrad)" stroke="#2d3b50" stroke-width="1"/>
+                <text x="640" y="155" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="10" letter-spacing="2">BLOCK C</text>
+                <text x="640" y="170" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="8" letter-spacing="1">FOUNDATION</text>
+              </g>
+
+              <!-- Entrance + site office -->
+              <rect x="80" y="260" width="80" height="50" fill="#131a26" stroke="#2d3b50" stroke-width="1"/>
+              <text x="120" y="290" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="8" letter-spacing="1">SITE OFFICE</text>
+
+              <rect x="200" y="260" width="50" height="50" fill="#131a26" stroke="#2d3b50" stroke-width="1"/>
+              <text x="225" y="290" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="7" letter-spacing="1">GATE</text>
+
+              <!-- Crane zones -->
+              <circle cx="180" cy="150" r="70" fill="none" stroke="#2d3b50" stroke-width="0.5" stroke-dasharray="2 3"/>
+              <circle cx="420" cy="150" r="70" fill="none" stroke="#2d3b50" stroke-width="0.5" stroke-dasharray="2 3"/>
+              <text x="180" y="90" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="7" letter-spacing="1">CRANE RADIUS</text>
+
+              <!-- Markers container -->
+              <g id="markers"></g>
+            </svg>
+            <div class="map-tip" id="mapTip"></div>
+          </div>
+        </div>
+
+        <!-- CCTV grid -->
+        <div class="site-panel">
+          <div class="panel-head">
+            <div class="panel-title">// CCTV FEED · AI VISION ANALYTICS</div>
+            <div class="panel-controls">
+              <span style="color:var(--danger);font-size:10px;letter-spacing:0.1em;">● REC</span>
+              <span>4 / 8 CAMERAS</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="cctv-grid">
+              <div class="cctv-cell" data-cam="CAM-01">
+                <div class="cctv-label">CAM-01 · GATE · PPE AI</div>
+                <div class="cctv-rec"><div class="dot"></div>REC</div>
+                <div class="cctv-time" id="time1"></div>
+                <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+                  <defs>
+                    <linearGradient id="sky1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#1a2a3a"/>
+                      <stop offset="1" stop-color="#0a0f14"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="400" height="200" fill="url(#sky1)"/>
+                  <!-- Ground -->
+                  <rect y="140" width="400" height="60" fill="#050709"/>
+                  <!-- Gate posts -->
+                  <rect x="20" y="40" width="6" height="130" fill="#2d3b50"/>
+                  <rect x="374" y="40" width="6" height="130" fill="#2d3b50"/>
+                  <rect x="20" y="38" width="360" height="4" fill="#2d3b50"/>
+                  <text x="200" y="32" text-anchor="middle" fill="#56606f" font-family="JetBrains Mono" font-size="7" letter-spacing="1">PPE CHECKPOINT</text>
+
+                  <!-- ======= WORKER 1: fully compliant (all PPE) ======= -->
+                  <g id="ppeWorker1" transform="translate(90, 70)">
+                    <!-- Hard hat -->
+                    <ellipse cx="0" cy="0" rx="11" ry="7" fill="#ffb547"/>
+                    <rect x="-11" y="-1" width="22" height="3" fill="#e89a2e"/>
+                    <!-- Head -->
+                    <circle cx="0" cy="4" r="6" fill="#d4a97a"/>
+                    <!-- Hi-vis vest (neon yellow-green with reflective stripes) -->
+                    <rect x="-10" y="10" width="20" height="26" fill="#d4ff2d"/>
+                    <rect x="-10" y="18" width="20" height="2" fill="#cfd5e0"/>
+                    <rect x="-10" y="28" width="20" height="2" fill="#cfd5e0"/>
+                    <!-- Arms -->
+                    <rect x="-14" y="12" width="4" height="20" fill="#d4ff2d"/>
+                    <rect x="10" y="12" width="4" height="20" fill="#d4ff2d"/>
+                    <!-- Gloves -->
+                    <rect x="-15" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <rect x="9" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <!-- Pants -->
+                    <rect x="-8" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <rect x="1" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <!-- Boots -->
+                    <rect x="-10" y="58" width="9" height="4" fill="#1a1a1a"/>
+                    <rect x="1" y="58" width="9" height="4" fill="#1a1a1a"/>
+                  </g>
+                  <!-- AI detection box WORKER 1 (all green) -->
+                  <g>
+                    <rect x="73" y="62" width="34" height="72" fill="none" stroke="#00d9a6" stroke-width="1"/>
+                    <rect x="73" y="54" width="64" height="8" fill="#00d9a6"/>
+                    <text x="75" y="60" fill="#000" font-family="JetBrains Mono" font-size="6" font-weight="700">WORKER-A · 0.97 · OK</text>
+                    <!-- Detail boxes for each PPE item -->
+                    <rect x="80" y="64" width="20" height="12" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="101" y="72" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">HELMET✓</text>
+                    <rect x="78" y="80" width="24" height="24" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="104" y="94" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">VEST✓</text>
+                    <rect x="73" y="101" width="34" height="7" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="109" y="108" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">GLOVES✓</text>
+                    <rect x="78" y="125" width="24" height="10" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="104" y="133" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">BOOTS✓</text>
+                  </g>
+
+                  <!-- ======= WORKER 2: violation (no helmet) — toggleable ======= -->
+                  <g id="ppeWorker2" transform="translate(200, 70)">
+                    <!-- Head (no helmet) -->
+                    <g id="w2helmet">
+                      <ellipse cx="0" cy="-2" rx="11" ry="7" fill="#ffb547"/>
+                      <rect x="-11" y="-3" width="22" height="3" fill="#e89a2e"/>
+                    </g>
+                    <circle cx="0" cy="4" r="6" fill="#d4a97a"/>
+                    <!-- Hair (visible when helmet removed) -->
+                    <path id="w2hair" d="M -6 -1 Q 0 -7 6 -1 Q 6 2 0 0 Q -6 2 -6 -1 Z" fill="#3a2515" style="display:none;"/>
+                    <!-- Hi-vis vest -->
+                    <rect x="-10" y="10" width="20" height="26" fill="#d4ff2d"/>
+                    <rect x="-10" y="18" width="20" height="2" fill="#cfd5e0"/>
+                    <rect x="-10" y="28" width="20" height="2" fill="#cfd5e0"/>
+                    <rect x="-14" y="12" width="4" height="20" fill="#d4ff2d"/>
+                    <rect x="10" y="12" width="4" height="20" fill="#d4ff2d"/>
+                    <!-- Gloves -->
+                    <rect x="-15" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <rect x="9" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <!-- Pants -->
+                    <rect x="-8" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <rect x="1" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <!-- Boots -->
+                    <rect x="-10" y="58" width="9" height="4" fill="#1a1a1a"/>
+                    <rect x="1" y="58" width="9" height="4" fill="#1a1a1a"/>
+                  </g>
+                  <g id="w2box">
+                    <rect x="183" y="62" width="34" height="72" fill="none" stroke="#00d9a6" stroke-width="1"/>
+                    <rect x="183" y="54" width="64" height="8" fill="#00d9a6"/>
+                    <text x="185" y="60" fill="#000" font-family="JetBrains Mono" font-size="6" font-weight="700">WORKER-B · 0.94 · OK</text>
+                    <rect x="190" y="64" width="20" height="12" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="211" y="72" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">HELMET✓</text>
+                    <rect x="188" y="80" width="24" height="24" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="214" y="94" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">VEST✓</text>
+                    <rect x="183" y="101" width="34" height="7" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="219" y="108" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">GLOVES✓</text>
+                    <rect x="188" y="125" width="24" height="10" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="214" y="133" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">BOOTS✓</text>
+                  </g>
+
+                  <!-- ======= WORKER 3: violation (no vest) ======= -->
+                  <g id="ppeWorker3" transform="translate(310, 70)">
+                    <ellipse cx="0" cy="0" rx="11" ry="7" fill="#ffb547"/>
+                    <rect x="-11" y="-1" width="22" height="3" fill="#e89a2e"/>
+                    <circle cx="0" cy="4" r="6" fill="#d4a97a"/>
+                    <!-- T-shirt (no vest, plain grey) -->
+                    <g id="w3vest">
+                      <rect x="-10" y="10" width="20" height="26" fill="#555c68"/>
+                      <rect x="-14" y="12" width="4" height="20" fill="#555c68"/>
+                      <rect x="10" y="12" width="4" height="20" fill="#555c68"/>
+                    </g>
+                    <rect x="-15" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <rect x="9" y="32" width="6" height="5" fill="#ff8c42"/>
+                    <rect x="-8" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <rect x="1" y="36" width="7" height="22" fill="#2d4a6b"/>
+                    <rect x="-10" y="58" width="9" height="4" fill="#1a1a1a"/>
+                    <rect x="1" y="58" width="9" height="4" fill="#1a1a1a"/>
+                  </g>
+                  <g id="w3box">
+                    <rect x="293" y="62" width="34" height="72" fill="none" stroke="#00d9a6" stroke-width="1"/>
+                    <rect x="293" y="54" width="64" height="8" fill="#00d9a6"/>
+                    <text x="295" y="60" fill="#000" font-family="JetBrains Mono" font-size="6" font-weight="700">WORKER-C · 0.93 · OK</text>
+                    <rect x="300" y="64" width="20" height="12" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="321" y="72" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">HELMET✓</text>
+                    <rect x="298" y="80" width="24" height="24" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="324" y="94" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">VEST✓</text>
+                    <rect x="293" y="101" width="34" height="7" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="329" y="108" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">GLOVES✓</text>
+                    <rect x="298" y="125" width="24" height="10" fill="none" stroke="#00d9a6" stroke-width="0.5"/>
+                    <text x="324" y="133" fill="#00d9a6" font-family="JetBrains Mono" font-size="5">BOOTS✓</text>
+                  </g>
+
+                  <!-- Status bar -->
+                  <rect x="0" y="185" width="400" height="15" fill="rgba(0,0,0,0.6)"/>
+                  <text x="10" y="195" fill="#00d9a6" font-family="JetBrains Mono" font-size="8" id="ppeStatus">PPE AI · YOLO v8 · 3 / 3 COMPLIANT · MODEL CONF 0.94</text>
+                </svg>
+                <div class="cctv-scan"></div>
+                <div class="cctv-vignette"></div>
+              </div>
+
+              <div class="cctv-cell" data-cam="CAM-02">
+                <div class="cctv-label">CAM-02 · BLOCK A · L5 POUR</div>
+                <div class="cctv-rec"><div class="dot"></div>REC</div>
+                <div class="cctv-time" id="time2"></div>
+                <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+                  <defs>
+                    <linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#253040"/>
+                      <stop offset="1" stop-color="#0f1a25"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="400" height="200" fill="url(#sky2)"/>
+                  <!-- Scaffolding -->
+                  <g stroke="#2d3b50" stroke-width="1" fill="none">
+                    <line x1="80" y1="20" x2="80" y2="180"/>
+                    <line x1="120" y1="20" x2="120" y2="180"/>
+                    <line x1="160" y1="20" x2="160" y2="180"/>
+                    <line x1="200" y1="20" x2="200" y2="180"/>
+                    <line x1="240" y1="20" x2="240" y2="180"/>
+                    <line x1="280" y1="20" x2="280" y2="180"/>
+                    <line x1="320" y1="20" x2="320" y2="180"/>
+                    <line x1="60" y1="50" x2="340" y2="50"/>
+                    <line x1="60" y1="90" x2="340" y2="90"/>
+                    <line x1="60" y1="130" x2="340" y2="130"/>
+                    <line x1="60" y1="170" x2="340" y2="170"/>
+                  </g>
+                  <!-- Crane arm -->
+                  <g style="transform-origin: 200px 20px; animation: crane-swing 8s ease-in-out infinite;">
+                    <line x1="200" y1="20" x2="350" y2="20" stroke="#ffb547" stroke-width="2"/>
+                    <line x1="320" y1="20" x2="320" y2="80" stroke="#888" stroke-width="0.5"/>
+                    <rect x="315" y="80" width="10" height="8" fill="#ffb547"/>
+                  </g>
+                  <!-- Workers -->
+                  <g>
+                    <circle cx="130" cy="125" r="4" fill="#ff4d5e"/>
+                    <rect x="127" y="129" width="6" height="12" fill="#ff4d5e"/>
+                    <rect x="170" y="85" r="4" fill="#ff4d5e"/>
+                    <circle cx="175" cy="85" r="4" fill="#ff4d5e"/>
+                    <rect x="172" y="89" width="6" height="12" fill="#ff4d5e"/>
+                    <circle cx="260" cy="165" r="4" fill="#ff4d5e"/>
+                    <rect x="257" y="169" width="6" height="11" fill="#ff4d5e"/>
+                  </g>
+                  <!-- AI boxes -->
+                  <g stroke="#00d9a6" stroke-width="1" fill="none">
+                    <rect x="123" y="120" width="14" height="22"/>
+                    <rect x="168" y="80" width="14" height="22"/>
+                    <rect x="253" y="160" width="14" height="20"/>
+                  </g>
+                  <text x="10" y="195" fill="#00d9a6" font-family="JetBrains Mono" font-size="9">3 WORKERS DETECTED · PPE: OK</text>
+                </svg>
+                <div class="cctv-scan"></div>
+                <div class="cctv-vignette"></div>
+              </div>
+
+              <div class="cctv-cell" data-cam="CAM-03">
+                <div class="cctv-label">CAM-03 · EQUIPMENT YARD</div>
+                <div class="cctv-rec"><div class="dot"></div>REC</div>
+                <div class="cctv-time" id="time3"></div>
+                <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+                  <rect width="400" height="200" fill="#0f1520"/>
+                  <rect y="130" width="400" height="70" fill="#050709"/>
+                  <!-- Excavator -->
+                  <g transform="translate(80, 90)">
+                    <rect x="0" y="30" width="60" height="20" fill="#ffb547"/>
+                    <rect x="10" y="15" width="30" height="18" fill="#ffb547"/>
+                    <circle cx="12" cy="55" r="8" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                    <circle cx="30" cy="55" r="8" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                    <circle cx="48" cy="55" r="8" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                    <line x1="40" y1="25" x2="70" y2="0" stroke="#ffb547" stroke-width="4"/>
+                    <line x1="70" y1="0" x2="85" y2="25" stroke="#ffb547" stroke-width="4"/>
+                    <polygon points="82,22 92,35 78,32" fill="#888"/>
+                  </g>
+                  <!-- Truck -->
+                  <g transform="translate(220, 100)">
+                    <rect x="0" y="15" width="80" height="25" fill="#4fc3f7"/>
+                    <rect x="80" y="5" width="35" height="35" fill="#4fc3f7"/>
+                    <rect x="88" y="12" width="22" height="15" fill="#1a2333"/>
+                    <circle cx="15" cy="45" r="7" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                    <circle cx="65" cy="45" r="7" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                    <circle cx="100" cy="45" r="7" fill="#1a2333" stroke="#333" stroke-width="1"/>
+                  </g>
+                  <!-- AI tags -->
+                  <g stroke="#00d9a6" stroke-width="1" fill="none">
+                    <rect x="75" y="85" width="90" height="60"/>
+                    <rect x="215" y="100" width="120" height="50"/>
+                  </g>
+                  <text x="78" y="82" fill="#00d9a6" font-family="JetBrains Mono" font-size="7">EXC-02 · ACTIVE</text>
+                  <text x="218" y="97" fill="#00d9a6" font-family="JetBrains Mono" font-size="7">MIXER-01 · IDLE 04:12</text>
+                  <text x="10" y="195" fill="#00d9a6" font-family="JetBrains Mono" font-size="9">FLEET ONLINE · GPS: 9/12</text>
+                </svg>
+                <div class="cctv-scan"></div>
+                <div class="cctv-vignette"></div>
+              </div>
+
+              <div class="cctv-cell" data-cam="CAM-04">
+                <div class="cctv-label">CAM-04 · PERIMETER · NORTH</div>
+                <div class="cctv-rec"><div class="dot"></div>REC</div>
+                <div class="cctv-time" id="time4"></div>
+                <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+                  <defs>
+                    <linearGradient id="sky4" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#1a2030"/>
+                      <stop offset="1" stop-color="#050709"/>
+                    </linearGradient>
+                  </defs>
+                  <rect width="400" height="200" fill="url(#sky4)"/>
+                  <rect y="150" width="400" height="50" fill="#050709"/>
+                  <!-- Fence -->
+                  <g stroke="#2d3b50" stroke-width="0.8" fill="none">
+                    <line x1="0" y1="110" x2="400" y2="110"/>
+                    <line x1="0" y1="150" x2="400" y2="150"/>
+                    <line x1="30" y1="90" x2="30" y2="155"/>
+                    <line x1="80" y1="90" x2="80" y2="155"/>
+                    <line x1="130" y1="90" x2="130" y2="155"/>
+                    <line x1="180" y1="90" x2="180" y2="155"/>
+                    <line x1="230" y1="90" x2="230" y2="155"/>
+                    <line x1="280" y1="90" x2="280" y2="155"/>
+                    <line x1="330" y1="90" x2="330" y2="155"/>
+                    <line x1="380" y1="90" x2="380" y2="155"/>
+                  </g>
+                  <!-- Stars / lights -->
+                  <circle cx="60" cy="30" r="1" fill="#8a94a6" opacity="0.7"/>
+                  <circle cx="180" cy="20" r="0.8" fill="#8a94a6" opacity="0.6"/>
+                  <circle cx="290" cy="40" r="1.2" fill="#8a94a6" opacity="0.8"/>
+                  <circle cx="350" cy="25" r="0.8" fill="#8a94a6" opacity="0.5"/>
+                  <!-- Spotlight sweep (conceptual) -->
+                  <polygon points="200,0 130,180 270,180" fill="#4fc3f7" opacity="0.04"/>
+                  <text x="10" y="195" fill="#00d9a6" font-family="JetBrains Mono" font-size="9">PERIMETER SECURE · MOTION: 0</text>
+                </svg>
+                <div class="cctv-scan"></div>
+                <div class="cctv-vignette"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============ RIGHT COLUMN ============ -->
+    <div class="col">
+      <div class="sec-head">
+        <div class="sec-title">// PPE DETECTION · AI VISION</div>
+        <div class="sec-count" id="ppeCount">3 / 3 OK</div>
+      </div>
+
+      <div class="ppe-grid">
+        <div class="ppe-chip ok" id="ppe-helmet">
+          <div class="ppe-icon">⛑️</div>
+          <div class="ppe-label">Hard Hat</div>
+          <div class="ppe-pct" id="ppeHelmetPct">100%</div>
+        </div>
+        <div class="ppe-chip ok" id="ppe-vest">
+          <div class="ppe-icon">🦺</div>
+          <div class="ppe-label">Hi-Vis</div>
+          <div class="ppe-pct" id="ppeVestPct">100%</div>
+        </div>
+        <div class="ppe-chip ok" id="ppe-gloves">
+          <div class="ppe-icon">🧤</div>
+          <div class="ppe-label">Gloves</div>
+          <div class="ppe-pct" id="ppeGlovesPct">100%</div>
+        </div>
+        <div class="ppe-chip ok" id="ppe-boots">
+          <div class="ppe-icon">🥾</div>
+          <div class="ppe-label">Boots</div>
+          <div class="ppe-pct" id="ppeBootsPct">100%</div>
+        </div>
+      </div>
+
+      <div id="workerList" style="margin-bottom:18px;"></div>
+
+      <div class="sec-head">
+        <div class="sec-title">// ENVIRONMENTAL</div>
+        <div class="sec-count">5 NODES</div>
+      </div>
+
+      <div class="env-grid">
+        <div class="env-card" id="env-pm25">
+          <div class="env-label">PM 2.5</div>
+          <div class="env-row"><span class="env-value" id="pm25Val">38</span><span class="env-unit">µg/m³</span></div>
+          <div class="env-bar" style="--pct: 38%;"></div>
+        </div>
+        <div class="env-card" id="env-temp">
+          <div class="env-label">Air Temp</div>
+          <div class="env-row"><span class="env-value" id="tempVal">33.4</span><span class="env-unit">°C</span></div>
+          <div class="env-bar" style="--pct: 67%;"></div>
+        </div>
+        <div class="env-card" id="env-humid">
+          <div class="env-label">Humidity</div>
+          <div class="env-row"><span class="env-value" id="humidVal">74</span><span class="env-unit">%</span></div>
+          <div class="env-bar" style="--pct: 74%;"></div>
+        </div>
+        <div class="env-card" id="env-noise">
+          <div class="env-label">Noise</div>
+          <div class="env-row"><span class="env-value" id="noiseVal">72</span><span class="env-unit">dB</span></div>
+          <div class="env-bar" style="--pct: 60%;"></div>
+        </div>
+        <div class="env-card" id="env-concrete">
+          <div class="env-label">Concrete L5</div>
+          <div class="env-row"><span class="env-value" id="concVal">18.4</span><span class="env-unit">MPa</span></div>
+          <div class="env-bar" style="--pct: 41%;"></div>
+        </div>
+        <div class="env-card" id="env-vib">
+          <div class="env-label">Crane Vib.</div>
+          <div class="env-row"><span class="env-value" id="vibVal">0.42</span><span class="env-unit">g</span></div>
+          <div class="env-bar" style="--pct: 21%;"></div>
+        </div>
+      </div>
+
+      <div class="sec-head">
+        <div class="sec-title">// ALERT FEED</div>
+        <div class="sec-count" id="alertCount">3 TODAY</div>
+      </div>
+      <div id="alertFeed"></div>
+
+      <div class="sec-head" style="margin-top:20px;">
+        <div class="sec-title">// DEMO TRIGGERS</div>
+        <div class="sec-count">PRESS FOR DEMO</div>
+      </div>
+      <p style="font-size:10px;color:var(--text-faint);line-height:1.5;margin-bottom:6px;letter-spacing:0.05em;">Simulate events for your presentation. Each button injects a live alert and updates the dashboard in real time.</p>
+      <div class="demo-row">
+        <button class="demo-btn" onclick="triggerNoHelmet()">⛑️ NO HELMET</button>
+        <button class="demo-btn warn" onclick="triggerNoVest()">🦺 NO HI-VIS</button>
+        <button class="demo-btn" onclick="triggerFallDetection()">⚠ FALL DETECT</button>
+        <button class="demo-btn" onclick="triggerHeatStress()">🌡 HEAT STRESS</button>
+        <button class="demo-btn warn" onclick="triggerAirQuality()">💨 PM 2.5 SPIKE</button>
+        <button class="demo-btn warn" onclick="triggerVibration()">📡 CRANE VIB.</button>
+        <button class="demo-btn" onclick="triggerIntrusion()">🚨 INTRUSION</button>
+        <button class="demo-btn safe" onclick="clearAlerts()">✓ RESET DEMO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ STATUS BAR ============ -->
+  <div class="statusbar">
+    <span>NETWORK // <span class="accent">LoRaWAN + 4G LTE</span></span>
+    <span>LATENCY // <span id="latency" class="accent">42 ms</span></span>
+    <span>UPLINK // <span class="accent">98.4%</span></span>
+    <span>PACKETS/S // <span id="pps" class="accent">247</span></span>
+    <div class="spacer"></div>
+    <span>CES 355 · TERM PROJECT · GROUP [X]</span>
+  </div>
+</div>
+
+<script>
+// ============ DATA ============
+const SENSORS = [
+  { id: 'WRK-001', name: 'Worker Badge · Zone A1', type: 'BLE', x: 150, y: 140, status: 'ok', val: '98%' },
+  { id: 'WRK-002', name: 'Worker Badge · Zone B2', type: 'BLE', x: 380, y: 150, status: 'ok', val: '87%' },
+  { id: 'WRK-003', name: 'Worker Badge · Zone C1', type: 'BLE', x: 620, y: 150, status: 'ok', val: '92%' },
+  { id: 'WRK-004', name: 'Worker Badge · Gate',    type: 'BLE', x: 220, y: 285, status: 'ok', val: '76%' },
+  { id: 'CNC-01',  name: 'Concrete Maturity L5',    type: 'LoRa', x: 160, y: 110, status: 'ok', val: '18.4 MPa' },
+  { id: 'CNC-02',  name: 'Concrete Maturity L3',    type: 'LoRa', x: 400, y: 110, status: 'ok', val: '12.1 MPa' },
+  { id: 'VIB-01',  name: 'Crane Vibration · A',     type: 'LoRa', x: 180, y: 80,  status: 'ok', val: '0.42 g' },
+  { id: 'VIB-02',  name: 'Crane Vibration · B',     type: 'LoRa', x: 420, y: 80,  status: 'ok', val: '0.31 g' },
+  { id: 'ENV-01',  name: 'Weather · PM 2.5',        type: 'LoRa', x: 110, y: 265, status: 'ok', val: '38 µg/m³' },
+  { id: 'ENV-02',  name: 'Noise Meter · North',     type: 'LoRa', x: 550, y: 260, status: 'ok', val: '72 dB' },
+  { id: 'EQP-01',  name: 'Excavator EXC-02',        type: 'GPS',  x: 260, y: 270, status: 'ok', val: 'ACTIVE' },
+  { id: 'EQP-02',  name: 'Mixer Truck MIX-01',      type: 'GPS',  x: 500, y: 270, status: 'warn', val: 'IDLE 04:12' },
+  { id: 'CAM-01',  name: 'CCTV · Gate AI',          type: 'WiFi', x: 225, y: 260, status: 'ok', val: 'REC' },
+  { id: 'CAM-02',  name: 'CCTV · Block A',          type: 'WiFi', x: 180, y: 200, status: 'ok', val: 'REC' },
+  { id: 'CAM-03',  name: 'CCTV · Yard',             type: 'WiFi', x: 380, y: 270, status: 'ok', val: 'REC' },
+  { id: 'CAM-04',  name: 'CCTV · Perimeter',        type: 'WiFi', x: 680, y: 60,  status: 'ok', val: 'REC' },
+];
+
+// ============ PPE WORKER DATA ============
+// Each worker has a PPE compliance profile: helmet, vest, gloves, boots
+const WORKERS = [
+  { id: 'WRK-A', zone: 'GATE · ZONE A1', helmet: true, vest: true, gloves: true, boots: true },
+  { id: 'WRK-B', zone: 'GATE · ZONE A1', helmet: true, vest: true, gloves: true, boots: true },
+  { id: 'WRK-C', zone: 'GATE · ZONE A1', helmet: true, vest: true, gloves: true, boots: true },
+];
+
+// ============ CLOCK ============
+function pad(n) { return n.toString().padStart(2, '0'); }
+function tick() {
+  const d = new Date();
+  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  document.getElementById('clock').textContent = t + ' ICT';
+  const t2 = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${t}`;
+  ['time1','time2','time3','time4'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = t2;
+  });
+}
+setInterval(tick, 1000); tick();
+
+// ============ RENDER SENSOR LIST ============
+function renderSensors() {
+  const list = document.getElementById('sensorList');
+  list.innerHTML = '';
+  SENSORS.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'sensor-item';
+    div.dataset.id = s.id;
+    div.innerHTML = `
+      <div class="sensor-dot ${s.status}"></div>
+      <div class="sensor-info">
+        <div class="sensor-name">${s.id}</div>
+        <div class="sensor-meta">${s.type} · ${s.name.split('·').slice(1).join('·').trim() || s.name}</div>
+      </div>
+      <div class="sensor-val">${s.val}</div>
+    `;
+    div.addEventListener('click', () => {
+      document.querySelectorAll('.sensor-item').forEach(x => x.classList.remove('active'));
+      div.classList.add('active');
+      highlightMarker(s.id);
+    });
+    list.appendChild(div);
+  });
+  const active = SENSORS.filter(s => s.status === 'ok').length;
+  document.getElementById('sensorCount').textContent = `${active} / ${SENSORS.length} ACTIVE`;
+}
+renderSensors();
+
+// ============ RENDER SITE MAP MARKERS ============
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function renderMarkers() {
+  const g = document.getElementById('markers');
+  g.innerHTML = '';
+  SENSORS.forEach(s => {
+    const color = s.status === 'ok' ? '#00d9a6' : s.status === 'warn' ? '#ffb547' : '#ff4d5e';
+    const wrap = document.createElementNS(SVG_NS, 'g');
+    wrap.setAttribute('class', 'map-marker');
+    wrap.setAttribute('transform', `translate(${s.x}, ${s.y})`);
+    wrap.dataset.id = s.id;
+
+    if (s.status === 'danger' || s.status === 'warn') {
+      const ping = document.createElementNS(SVG_NS, 'circle');
+      ping.setAttribute('cx', 0); ping.setAttribute('cy', 0);
+      ping.setAttribute('r', 8);
+      ping.setAttribute('fill', 'none');
+      ping.setAttribute('stroke', color);
+      ping.setAttribute('stroke-width', '1.5');
+      ping.setAttribute('class', 'ping');
+      wrap.appendChild(ping);
+    }
+    const ring = document.createElementNS(SVG_NS, 'circle');
+    ring.setAttribute('cx', 0); ring.setAttribute('cy', 0);
+    ring.setAttribute('r', 8);
+    ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', color);
+    ring.setAttribute('stroke-width', '1');
+    ring.setAttribute('opacity', '0.5');
+    wrap.appendChild(ring);
+
+    const core = document.createElementNS(SVG_NS, 'circle');
+    core.setAttribute('class', 'core');
+    core.setAttribute('cx', 0); core.setAttribute('cy', 0);
+    core.setAttribute('r', 4);
+    core.setAttribute('fill', color);
+    wrap.appendChild(core);
+
+    wrap.addEventListener('mouseenter', (e) => showMapTip(s, e));
+    wrap.addEventListener('mouseleave', hideMapTip);
+    wrap.addEventListener('click', () => {
+      document.querySelectorAll('.sensor-item').forEach(x => {
+        x.classList.toggle('active', x.dataset.id === s.id);
+        if (x.dataset.id === s.id) x.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+    g.appendChild(wrap);
+  });
+}
+renderMarkers();
+
+function showMapTip(s, e) {
+  const tip = document.getElementById('mapTip');
+  tip.innerHTML = `
+    <div class="tip-label">${s.id} · ${s.type}</div>
+    <div style="margin-top:4px;">${s.name}</div>
+    <div style="margin-top:2px;color:${s.status==='ok'?'var(--accent)':s.status==='warn'?'var(--warn)':'var(--danger)'}">${s.val} · ${s.status.toUpperCase()}</div>
+  `;
+  const rect = e.currentTarget.closest('.panel-body').getBoundingClientRect();
+  tip.style.left = (e.clientX - rect.left + 12) + 'px';
+  tip.style.top = (e.clientY - rect.top + 12) + 'px';
+  tip.classList.add('show');
+}
+function hideMapTip() { document.getElementById('mapTip').classList.remove('show'); }
+
+function highlightMarker(id) {
+  // visual flash on marker
+  const markers = document.querySelectorAll('.map-marker');
+  markers.forEach(m => {
+    if (m.dataset.id === id) {
+      const core = m.querySelector('.core');
+      core.setAttribute('r', 10);
+      setTimeout(() => core.setAttribute('r', 4), 600);
+    }
+  });
+}
+
+// ============ ALERT FEED ============
+const alerts = [
+  { type: 'INFO', msg: 'Shift A check-in complete: 47 / 48 workers scanned at gate.', meta: 'GATE · CAM-01', time: '07:02', level: 'ok' },
+  { type: 'WARN', msg: 'Mixer truck MIX-01 idle for 4 min 12 sec at yard. Engine on.', meta: 'EQP-02 · GPS', time: '09:47', level: 'warn' },
+  { type: 'INFO', msg: 'Concrete L5 pour complete. Maturity model active. Predicted 28-d strength: 32.1 MPa.', meta: 'CNC-01 · LoRa', time: '10:14', level: 'ok' },
+];
+function renderAlerts() {
+  const feed = document.getElementById('alertFeed');
+  feed.innerHTML = '';
+  alerts.slice().reverse().forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'alert-card ' + (a.level === 'warn' ? 'warn' : a.level === 'danger' ? 'danger' : '');
+    card.innerHTML = `
+      <div class="alert-head">
+        <div class="alert-type">${a.type}</div>
+        <div class="alert-time">${a.time}</div>
+      </div>
+      <div class="alert-msg">${a.msg}</div>
+      <div class="alert-meta">${a.meta}</div>
+    `;
+    feed.appendChild(card);
+  });
+  document.getElementById('alertCount').textContent = `${alerts.length} TODAY`;
+}
+renderAlerts();
+
+function addAlert(alert) {
+  const d = new Date();
+  alert.time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  alerts.push(alert);
+  renderAlerts();
+  // flash incident counter
+  const kpi = document.getElementById('kpiIncidents');
+  kpi.textContent = parseInt(kpi.textContent) + 1;
+  kpi.classList.add('flash'); setTimeout(() => kpi.classList.remove('flash'), 1000);
+}
+
+// ============ LIVE DATA TICKER ============
+function jitter(val, range) {
+  return val + (Math.random() - 0.5) * range;
+}
+function updateEnv() {
+  const pm = parseFloat(document.getElementById('pm25Val').textContent);
+  const newPm = Math.max(10, Math.min(90, jitter(pm, 2))).toFixed(0);
+  document.getElementById('pm25Val').textContent = newPm;
+  document.querySelector('#env-pm25 .env-bar').style.setProperty('--pct', newPm + '%');
+
+  const t = parseFloat(document.getElementById('tempVal').textContent);
+  const newT = jitter(t, 0.3).toFixed(1);
+  document.getElementById('tempVal').textContent = newT;
+
+  const h = parseFloat(document.getElementById('humidVal').textContent);
+  const newH = Math.max(50, Math.min(90, jitter(h, 1))).toFixed(0);
+  document.getElementById('humidVal').textContent = newH;
+
+  const n = parseFloat(document.getElementById('noiseVal').textContent);
+  const newN = Math.max(50, Math.min(95, jitter(n, 2))).toFixed(0);
+  document.getElementById('noiseVal').textContent = newN;
+
+  const c = parseFloat(document.getElementById('concVal').textContent);
+  const newC = (c + 0.02 + Math.random() * 0.03).toFixed(1);
+  document.getElementById('concVal').textContent = newC;
+
+  const v = parseFloat(document.getElementById('vibVal').textContent);
+  document.getElementById('vibVal').textContent = Math.max(0.1, jitter(v, 0.05)).toFixed(2);
+
+  // latency + packets
+  document.getElementById('latency').textContent = Math.round(jitter(42, 8)) + ' ms';
+  document.getElementById('pps').textContent = Math.round(jitter(247, 30));
+}
+setInterval(updateEnv, 1500);
+
+// ============ WORKER ANIMATION REMOVED ============
+// CAM-01 is now a static PPE checkpoint view with 3 workers
+
+// ============ DEMO TRIGGERS ============
+function setSensorStatus(id, status, val) {
+  const s = SENSORS.find(x => x.id === id);
+  if (s) { s.status = status; if (val !== undefined) s.val = val; }
+  renderSensors();
+  renderMarkers();
+}
+
+// ============ PPE RENDER ============
+function renderWorkerList() {
+  const list = document.getElementById('workerList');
+  list.innerHTML = '';
+  WORKERS.forEach(w => {
+    const hasViolation = !w.helmet || !w.vest || !w.gloves || !w.boots;
+    const row = document.createElement('div');
+    row.className = 'worker-row' + (hasViolation ? ' violation' : '');
+    row.innerHTML = `
+      <div class="worker-avatar">${w.id.split('-')[1]}</div>
+      <div>
+        <div class="worker-id">${w.id}</div>
+        <div class="worker-zone">${w.zone}</div>
+      </div>
+      <div class="ppe-badges">
+        <div class="ppe-badge ${w.helmet ? 'yes' : 'no'}" title="Hard Hat"></div>
+        <div class="ppe-badge ${w.vest ? 'yes' : 'no'}" title="Hi-Vis Vest"></div>
+        <div class="ppe-badge ${w.gloves ? 'yes' : 'no'}" title="Gloves"></div>
+        <div class="ppe-badge ${w.boots ? 'yes' : 'no'}" title="Boots"></div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+function updatePpeChips() {
+  const total = WORKERS.length;
+  const items = ['helmet', 'vest', 'gloves', 'boots'];
+  const ids = { helmet: 'ppe-helmet', vest: 'ppe-vest', gloves: 'ppe-gloves', boots: 'ppe-boots' };
+  const pcts = { helmet: 'ppeHelmetPct', vest: 'ppeVestPct', gloves: 'ppeGlovesPct', boots: 'ppeBootsPct' };
+  let violations = 0;
+  items.forEach(k => {
+    const ok = WORKERS.filter(w => w[k]).length;
+    const pct = Math.round((ok / total) * 100);
+    document.getElementById(pcts[k]).textContent = pct + '%';
+    const chip = document.getElementById(ids[k]);
+    chip.classList.toggle('violation', ok < total);
+    chip.classList.toggle('ok', ok === total);
+    if (ok < total) violations++;
+  });
+  const compliant = WORKERS.filter(w => w.helmet && w.vest && w.gloves && w.boots).length;
+  document.getElementById('ppeCount').textContent = `${compliant} / ${total} OK`;
+  const status = document.getElementById('ppeStatus');
+  if (status) {
+    if (compliant === total) {
+      status.textContent = `PPE AI · YOLO v8 · ${compliant} / ${total} COMPLIANT · MODEL CONF 0.94`;
+      status.setAttribute('fill', '#00d9a6');
+    } else {
+      status.textContent = `PPE AI · YOLO v8 · ${total - compliant} VIOLATION(S) DETECTED · ACCESS DENIED`;
+      status.setAttribute('fill', '#ff4d5e');
+    }
+  }
+}
+renderWorkerList();
+updatePpeChips();
+
+// Update CAM-01 SVG boxes for a worker (1, 2, or 3) based on compliance
+function updateCamBox(workerIdx, worker) {
+  const boxId = `w${workerIdx}box`;
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  const rects = box.querySelectorAll('rect');
+  const labelBar = rects[1]; // the solid label bar
+  const labelText = box.querySelector('text');
+  const detailTexts = box.querySelectorAll('text');
+  const items = [
+    { key: 'helmet', label: 'HELMET' },
+    { key: 'vest', label: 'VEST' },
+    { key: 'gloves', label: 'GLOVES' },
+    { key: 'boots', label: 'BOOTS' },
+  ];
+  const allOk = items.every(it => worker[it.key]);
+  const mainColor = allOk ? '#00d9a6' : '#ff4d5e';
+  rects[0].setAttribute('stroke', mainColor);
+  labelBar.setAttribute('fill', mainColor);
+  detailTexts[0].textContent = `${worker.id} · 0.9${workerIdx+2} · ${allOk ? 'OK' : 'VIOLATION'}`;
+  // per-item
+  items.forEach((it, idx) => {
+    const subRect = rects[2 + idx];
+    const subText = detailTexts[1 + idx];
+    const color = worker[it.key] ? '#00d9a6' : '#ff4d5e';
+    subRect.setAttribute('stroke', color);
+    subText.setAttribute('fill', color);
+    subText.textContent = `${it.label}${worker[it.key] ? '✓' : '✗'}`;
+  });
+}
+
+function triggerNoHelmet() {
+  WORKERS[1].helmet = false;
+  renderWorkerList();
+  updatePpeChips();
+  // Hide helmet graphic on CAM-01 worker 2
+  document.getElementById('w2helmet').style.display = 'none';
+  document.getElementById('w2hair').style.display = 'block';
+  updateCamBox(2, WORKERS[1]);
+  addAlert({
+    type: '⚠ PPE VIOLATION',
+    msg: 'NO HARD HAT detected — Worker WRK-B at gate checkpoint. Access denied by automated turnstile. Supervisor notified.',
+    meta: 'CAM-01 · PPE AI · Gate · Conf 0.96',
+    level: 'danger'
+  });
+  setSensorStatus('CAM-01', 'danger', 'PPE!');
+}
+
+function triggerNoVest() {
+  WORKERS[2].vest = false;
+  renderWorkerList();
+  updatePpeChips();
+  // Change vest color to plain grey on CAM-01 worker 3
+  const vest = document.getElementById('w3vest');
+  vest.querySelectorAll('rect').forEach(r => r.setAttribute('fill', '#555c68'));
+  updateCamBox(3, WORKERS[2]);
+  addAlert({
+    type: '⚠ PPE VIOLATION',
+    msg: 'NO HI-VIS VEST detected — Worker WRK-C at gate checkpoint. Required for zones with heavy equipment. Flagged for HR.',
+    meta: 'CAM-01 · PPE AI · Gate · Conf 0.92',
+    level: 'warn'
+  });
+}
+
+function triggerFallDetection() {
+  setSensorStatus('WRK-002', 'danger', 'FALL!');
+  addAlert({
+    type: '⚠ CRITICAL',
+    msg: 'FALL DETECTED — Worker Badge WRK-002 impact event on Block B L3. Emergency protocol activated. Site supervisor notified via SMS.',
+    meta: 'WRK-002 · BLE · Block B · L3',
+    level: 'danger'
+  });
+  const kpi = document.getElementById('kpiWorkers'); kpi.classList.add('flash');
+  setTimeout(() => kpi.classList.remove('flash'), 1000);
+}
+
+function triggerHeatStress() {
+  setSensorStatus('WRK-003', 'warn', 'HR: 148');
+  addAlert({
+    type: '⚠ HEALTH',
+    msg: 'Heat stress warning — WRK-003 heart rate 148 bpm, core temp 38.2°C. Mandatory 15-min rest break triggered.',
+    meta: 'WRK-003 · Smart Helmet · Block C',
+    level: 'warn'
+  });
+}
+
+function triggerAirQuality() {
+  document.getElementById('pm25Val').textContent = '86';
+  document.getElementById('env-pm25').classList.add('warn');
+  document.querySelector('#env-pm25 .env-bar').style.setProperty('--pct', '86%');
+  setSensorStatus('ENV-01', 'warn', '86 µg/m³');
+  addAlert({
+    type: '⚠ ENVIRONMENT',
+    msg: 'PM 2.5 exceeded safe threshold (86 > 50 µg/m³). Dust-generating activity in sector A1 flagged for review. N95 masks required.',
+    meta: 'ENV-01 · LoRa · North Compound',
+    level: 'warn'
+  });
+}
+
+function triggerVibration() {
+  document.getElementById('vibVal').textContent = '1.84';
+  setSensorStatus('VIB-01', 'warn', '1.84 g');
+  addAlert({
+    type: '⚠ STRUCTURAL',
+    msg: 'Crane A vibration spike 1.84 g (threshold 1.2 g). Load oscillation detected. Operator signalled to pause.',
+    meta: 'VIB-01 · LoRa · Block A Crane',
+    level: 'warn'
+  });
+}
+
+function triggerIntrusion() {
+  setSensorStatus('CAM-04', 'danger', 'MOTION!');
+  addAlert({
+    type: '⚠ SECURITY',
+    msg: 'Unauthorised motion detected — perimeter CAM-04 north fence. AI classification: human, 0.91 confidence. Security dispatched.',
+    meta: 'CAM-04 · Wi-Fi · North Perimeter · 22:47',
+    level: 'danger'
+  });
+}
+
+function clearAlerts() {
+  SENSORS.forEach(s => {
+    if (s.id === 'EQP-02') { s.status = 'warn'; }
+    else { s.status = 'ok'; }
+  });
+  // Reset specific values
+  const reset = { 'WRK-002': '87%', 'WRK-003': '92%', 'ENV-01': '38 µg/m³', 'VIB-01': '0.42 g', 'CAM-04': 'REC', 'CAM-01': 'REC' };
+  Object.entries(reset).forEach(([id, v]) => { const s = SENSORS.find(x => x.id === id); if (s) s.val = v; });
+  document.getElementById('pm25Val').textContent = '38';
+  document.querySelector('#env-pm25 .env-bar').style.setProperty('--pct', '38%');
+  document.getElementById('env-pm25').classList.remove('warn');
+  document.getElementById('vibVal').textContent = '0.42';
+  document.getElementById('kpiIncidents').textContent = '2';
+
+  // Reset PPE state
+  WORKERS.forEach(w => { w.helmet = true; w.vest = true; w.gloves = true; w.boots = true; });
+  // Restore helmet graphic on CAM-01 worker 2
+  const w2helmet = document.getElementById('w2helmet');
+  const w2hair = document.getElementById('w2hair');
+  if (w2helmet) w2helmet.style.display = 'block';
+  if (w2hair) w2hair.style.display = 'none';
+  // Restore vest color on worker 3
+  const w3vest = document.getElementById('w3vest');
+  if (w3vest) w3vest.querySelectorAll('rect').forEach(r => r.setAttribute('fill', '#d4ff2d'));
+  // Restore CAM boxes
+  updateCamBox(2, WORKERS[1]);
+  updateCamBox(3, WORKERS[2]);
+  renderWorkerList();
+  updatePpeChips();
+
+  alerts.length = 0;
+  alerts.push(
+    { type: 'INFO', msg: 'Shift A check-in complete: 47 / 48 workers scanned at gate.', meta: 'GATE · CAM-01', time: '07:02', level: 'ok' },
+    { type: 'WARN', msg: 'Mixer truck MIX-01 idle for 4 min 12 sec at yard. Engine on.', meta: 'EQP-02 · GPS', time: '09:47', level: 'warn' },
+    { type: 'INFO', msg: 'Concrete L5 pour complete. Maturity model active. Predicted 28-d strength: 32.1 MPa.', meta: 'CNC-01 · LoRa', time: '10:14', level: 'ok' }
+  );
+  renderSensors();
+  renderMarkers();
+  renderAlerts();
+}
+
+// ============ AUTO-DEMO (random events every 45s) ============
+// Disabled by default so you control the demo during presentation.
+// Uncomment to enable passive demo:
+// const autoTriggers = [triggerFallDetection, triggerHeatStress, triggerAirQuality, triggerVibration, triggerIntrusion];
+// setInterval(() => { autoTriggers[Math.floor(Math.random() * autoTriggers.length)](); }, 45000);
+
+// Keyboard shortcuts for quick demo control
+document.addEventListener('keydown', (e) => {
+  if (e.key === '1') triggerNoHelmet();
+  if (e.key === '2') triggerNoVest();
+  if (e.key === '3') triggerFallDetection();
+  if (e.key === '4') triggerHeatStress();
+  if (e.key === '5') triggerAirQuality();
+  if (e.key === '6') triggerVibration();
+  if (e.key === '7') triggerIntrusion();
+  if (e.key === '0' || e.key === 'r') clearAlerts();
+});
+</script>
+</body>
+</html>
